@@ -1,0 +1,9 @@
+{
+  "vehicle_classes": [
+    "car",
+    "motorcycle",
+    "bus",
+    "truck",
+    "van"
+  ]
+}

@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Vehicle Counting & Speed Estimation</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f5f8;
+            color: #172033;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1250px;
+            margin: 35px auto;
+        }
+
+        h1 {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 20px;
+            color: #555;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 28px;
+        }
+
+        input[type="file"] {
+            margin: 15px 0;
+            font-size: 16px;
+        }
+
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 13px 22px;
+            margin: 8px 8px 8px 0;
+            font-size: 16px;
+            cursor: pointer;
+            background: #172033;
+            color: white;
+        }
+
+        button:hover {
+            background: #293653;
+        }
+
+        button:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #eef1f5;
+            font-size: 16px;
+        }
+
+        .success {
+            background: #e8f7ed;
+            color: #176b35;
+        }
+
+        .error {
+            background: #fdeaea;
+            color: #a52222;
+        }
+
+        .processing {
+            background: #fff5d9;
+            color: #765800;
+        }
+
+        .video-container {
+            margin-top: 20px;
+            background: #111827;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        video {
+            width: 100%;
+            max-height: 650px;
+            display: block;
+            border-radius: 8px;
+            background: black;
+        }
+
+        .live-preview {
+            width: 100%;
+            max-height: 650px;
+            object-fit: contain;
+            display: block;
+            background: black;
+        }
+
+        .processing-progress {
+            width: 100%;
+            height: 12px;
+            margin-top: 14px;
+            accent-color: #d63b32;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            flex: 1;
+            min-width: 180px;
+            background: #f1f4f8;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .stat-title {
+            font-size: 15px;
+            color: #555;
+        }
+
+        .stat-value {
+            font-size: 30px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .vehicle {
+            padding: 12px;
+            margin-top: 8px;
+            border-radius: 8px;
+            background: #f1f4f8;
+            font-size: 17px;
+        }
+
+        .note {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .open-video {
+            display: none;
+            margin-top: 15px;
+            color: #172033;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+
+<body>
+
+<div class="container">
+
+    <h1>Vehicle Counting & Speed Estimation</h1>
+
+    <div class="subtitle">
+        YOLOv8 + DeepSORT + Two-Line Speed Gates
+    </div>
+
+
+    <!-- =====================================================
+         1. INPUT VIDEO
+    ====================================================== -->
+
+    <div class="card">
+
+        <h2>1. Input Video</h2>
+
+        <input
+            type="file"
+            id="videoInput"
+            accept="video/*"
+        >
+
+        <div
+            id="selectedFile"
+            class="status"
+        >
+            No video selected.
+        </div>
+
+        <label for="speedGateDistanceM">
+            Measured distance between red gates (m)
+        </label>
+        <input
+            type="number"
+            id="speedGateDistanceM"
+            min="0.1"
+            max="1000"
+            step="0.1"
+            placeholder="Enter measured metres"
+        >
+        <p class="note">
+            Speed requires the real road distance between the two red lines.
+        </p>
+
+        <br>
+
+        <button id="uploadBtn">
+            Upload Video
+        </button>
+
+        <button
+            id="processBtn"
+            disabled
+        >
+            Process Video
+        </button>
+
+        <p class="note">
+            Select a CCTV/traffic video and upload it.
+            Then click Process Video.
+        </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         2. OUTPUT VIDEO
+    ====================================================== -->
+
+    <div class="card">
+
+        <h2>2. Processed Output Video</h2>
+
+        <button
+            id="playBtn"
+            disabled
+        >
+            ▶ Play
+        </button>
+
+        <button
+            id="pauseBtn"
+            disabled
+        >
+            ⏸ Pause
+        </button>
+
+        <button
+            id="stopBtn"
+            disabled
+        >
+            ⏹ Stop
+        </button>
+
+
+        <div class="video-container">
+
+            <img
+                id="livePreview"
+                class="live-preview"
+                alt="Live annotated vehicle detection preview"
+                hidden
+            >
+
+            <video
+                id="outputVideo"
+                controls
+                playsinline
+                preload="metadata"
+            >
+            </video>
+
+        </div>
+
+        <progress
+            id="processingProgress"
+            class="processing-progress"
+            max="100"
+            value="0"
+            hidden
+        ></progress>
+
+        <div id="processingProgressText" class="note" hidden>
+            Waiting for processing updates.
+        </div>
+
+
+        <div
+            id="videoStatus"
+            class="status"
+        >
+            No processed video loaded.
+        </div>
+
+
+        <a
+            id="openVideoLink"
+            class="open-video"
+            target="_blank"
+        >
+            Open processed video directly
+        </a>
+
+    </div>
+
+
+    <!-- =====================================================
+         3. DETECTION RESULTS
+    ====================================================== -->
+
+    <div class="card">
+
+        <h2>3. Detection Results</h2>
+
+        <div class="stats">
+
+            <div class="stat-box">
+
+                <div class="stat-title">
+                    Vehicles Crossed ROI
+                </div>
+
+                <div
+                    class="stat-value"
+                    id="vehicleCount"
+                >
+                    0
+                </div>
+
+            </div>
+
+
+            <div class="stat-box">
+
+                <div class="stat-title">
+                    Processing Status
+                </div>
+
+                <div
+                    class="stat-value"
+                    id="processingStatus"
+                >
+                    Ready
+                </div>
+
+            </div>
+
+        </div>
+
+        <div id="resultsNote" class="status">
+            Vehicle results will appear here.
+        </div>
+
+        <div id="vehicleList">
+
+            <div class="vehicle">
+                No vehicle results available yet.
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* =========================================================
+   ELEMENTS
+========================================================= */
+
+const videoInput = document.getElementById("videoInput");
+
+const selectedFile = document.getElementById("selectedFile");
+
+const speedGateDistanceInput = document.getElementById("speedGateDistanceM");
+
+const uploadBtn = document.getElementById("uploadBtn");
+
+const processBtn = document.getElementById("processBtn");
+
+const playBtn = document.getElementById("playBtn");
+
+const pauseBtn = document.getElementById("pauseBtn");
+
+const stopBtn = document.getElementById("stopBtn");
+
+const outputVideo = document.getElementById("outputVideo");
+
+const livePreview = document.getElementById("livePreview");
+
+const processingProgress = document.getElementById("processingProgress");
+
+const processingProgressText = document.getElementById("processingProgressText");
+
+const videoStatus = document.getElementById("videoStatus");
+
+const vehicleCount = document.getElementById("vehicleCount");
+
+const processingStatus =
+    document.getElementById("processingStatus");
+
+const vehicleList =
+    document.getElementById("vehicleList");
+
+const resultsNote =
+    document.getElementById("resultsNote");
+
+const openVideoLink =
+    document.getElementById("openVideoLink");
+
+
+/* =========================================================
+   VARIABLES
+========================================================= */
+
+let uploadedFilename = null;
+
+let processedVideoUrl = null;
+
+let processingPollTimer = null;
+
+let lastLivePreviewUrl = null;
+
+
+/* =========================================================
+   STATUS
+========================================================= */
+
+function status(message, type = "") {
+
+    videoStatus.textContent = message;
+
+    videoStatus.className = "status";
+
+    if (type) {
+        videoStatus.classList.add(type);
+    }
+}
+
+
+function renderVehicleResults(results) {
+
+    vehicleList.replaceChildren();
+
+    if (!Array.isArray(results) || results.length === 0) {
+        renderVehicleNotice("No vehicles crossed the ROI line.");
+        return;
+    }
+
+    for (const result of results) {
+        const row = document.createElement("div");
+        row.className = "vehicle";
+        const speed = Number.isFinite(result.speedKmph)
+            ? `${result.speedKmph.toFixed(1)} km/h`
+            : "Not calibrated";
+        row.textContent = `ID ${result.vehicleId} | ${result.type} | ${result.direction} | ${speed} | frame ${result.crossingFrame}`;
+        vehicleList.append(row);
+    }
+}
+
+
+function renderVehicleNotice(message) {
+
+    const notice = document.createElement("div");
+    notice.className = "vehicle";
+    notice.textContent = message;
+    vehicleList.replaceChildren(notice);
+}
+
+
+async function updateLiveProgress(videoId) {
+
+    try {
+        const response = await fetch(
+            `/api/video/progress/${encodeURIComponent(videoId)}`,
+            { cache: "no-store" }
+        );
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const percent = Number.isFinite(data.percent) ? data.percent : 0;
+        processingProgress.value = percent;
+        processingProgressText.textContent =
+            `${percent.toFixed(1)}% | frame ${data.currentFrame || 0}/${data.totalFrames || 0} | ${data.totalCrossed || 0} crossed`;
+        vehicleCount.textContent = String(data.totalCrossed || 0);
+
+        if (data.previewUrl && data.previewUrl !== lastLivePreviewUrl) {
+            lastLivePreviewUrl = data.previewUrl;
+            livePreview.src = data.previewUrl;
+            livePreview.hidden = false;
+            outputVideo.hidden = true;
+        }
+
+        if (Array.isArray(data.vehicles)) {
+            renderVehicleResults(data.vehicles);
+        }
+
+        if (data.status === "failed") {
+            resultsNote.textContent = data.error || "Video processing failed.";
+            resultsNote.className = "status error";
+        }
+    } catch (error) {
+        console.warn("Could not update live progress:", error);
+    }
+}
+
+
+/* =========================================================
+   RESET OUTPUT VIDEO
+========================================================= */
+
+function resetVideo() {
+
+    outputVideo.pause();
+
+    outputVideo.removeAttribute("src");
+
+    outputVideo.load();
+
+    outputVideo.hidden = false;
+
+    livePreview.hidden = true;
+
+    livePreview.removeAttribute("src");
+
+    processingProgress.hidden = true;
+
+    processingProgress.value = 0;
+
+    processingProgressText.hidden = true;
+
+    lastLivePreviewUrl = null;
+
+    processedVideoUrl = null;
+
+    openVideoLink.style.display = "none";
+
+    playBtn.disabled = true;
+
+    pauseBtn.disabled = true;
+
+    stopBtn.disabled = true;
+}
+
+
+/* =========================================================
+   LOAD VIDEO
+========================================================= */
+
+function loadVideo(url) {
+
+    if (!url) {
+
+        status(
+            "Processed video URL nahi mila.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    console.log("Loading video:");
+
+    console.log(url);
+
+
+    processedVideoUrl = url;
+
+    livePreview.hidden = true;
+
+    outputVideo.hidden = false;
+
+
+    outputVideo.pause();
+
+
+    /*
+       Direct src use kar rahe hain.
+       Koi fake _h264 filename nahi banayenge.
+    */
+
+    outputVideo.src =
+        url + "?t=" + Date.now();
+
+
+    outputVideo.load();
+
+
+    openVideoLink.href =
+        outputVideo.src;
+
+    openVideoLink.style.display =
+        "inline-block";
+
+
+    status(
+        "Processed video loading...",
+        "processing"
+    );
+}
+
+
+/* =========================================================
+   SELECT VIDEO
+========================================================= */
+
+videoInput.addEventListener(
+    "change",
+    function () {
+
+        if (videoInput.files.length === 0) {
+
+            selectedFile.textContent =
+                "No video selected.";
+
+            uploadedFilename = null;
+
+            processBtn.disabled = true;
+
+            return;
+        }
+
+
+        const file =
+            videoInput.files[0];
+
+
+        selectedFile.textContent =
+            "Selected: " + file.name;
+
+
+        uploadedFilename = null;
+
+        processBtn.disabled = true;
+
+
+        processingStatus.textContent =
+            "Ready";
+
+        if (processingPollTimer) {
+            clearInterval(processingPollTimer);
+            processingPollTimer = null;
+        }
+
+        resultsNote.textContent =
+            "No processing results for the selected video.";
+
+        resultsNote.className =
+            "status";
+
+
+        vehicleCount.textContent =
+            "0";
+
+
+        resetVideo();
+
+
+        status(
+            "Video selected. Click Upload Video."
+        );
+
+
+        vehicleList.innerHTML = `
+            <div class="vehicle">
+                Video selected. Upload it to continue.
+            </div>
+        `;
+
+    }
+);
+
+
+/* =========================================================
+   UPLOAD VIDEO
+========================================================= */
+
+uploadBtn.addEventListener(
+    "click",
+    async function () {
+
+        if (videoInput.files.length === 0) {
+
+            alert(
+                "Please select a video first."
+            );
+
+            return;
+        }
+
+
+        const file =
+            videoInput.files[0];
+
+
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "video",
+            file
+        );
+
+
+        uploadBtn.disabled = true;
+
+        processBtn.disabled = true;
+
+
+        processingStatus.textContent =
+            "Uploading";
+
+
+        selectedFile.textContent =
+            "Uploading: " + file.name;
+
+
+        status(
+            "Uploading video to server...",
+            "processing"
+        );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/video/upload",
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "UPLOAD RESPONSE:",
+                data
+            );
+
+
+            if (
+                !response.ok ||
+                !data.success
+            ) {
+
+                throw new Error(
+                    data.message ||
+                    "Video upload failed."
+                );
+            }
+
+            if (processingPollTimer) {
+                clearInterval(processingPollTimer);
+                processingPollTimer = null;
+            }
+
+
+            /*
+               IMPORTANT:
+               Server ka actual filename save karo.
+            */
+
+            uploadedFilename =
+                data.filename;
+
+
+            console.log(
+                "Uploaded filename:",
+                uploadedFilename
+            );
+
+
+            selectedFile.textContent =
+                "Upload successful: " +
+                (data.originalName || file.name);
+
+
+            processingStatus.textContent =
+                "Uploaded";
+
+
+            status(
+                "Video uploaded successfully. Now click Process Video.",
+                "success"
+            );
+
+
+            processBtn.disabled =
+                false;
+
+
+            vehicleList.innerHTML = `
+                <div class="vehicle">
+                    Video uploaded successfully.
+                </div>
+
+                <div class="vehicle">
+                    Click Process Video to start YOLOv8 + DeepSORT.
+                </div>
+            `;
+
+        }
+        catch (error) {
+
+            if (processingPollTimer) {
+                clearInterval(processingPollTimer);
+                processingPollTimer = null;
+            }
+
+            console.error(
+                "UPLOAD ERROR:",
+                error
+            );
+
+
+            uploadedFilename = null;
+
+
+            processingStatus.textContent =
+                "Upload Failed";
+
+
+            status(
+                "Upload failed: " +
+                error.message,
+                "error"
+            );
+
+
+            processBtn.disabled =
+                true;
+
+        }
+        finally {
+
+            uploadBtn.disabled =
+                false;
+        }
+
+    }
+);
+
+
+/* =========================================================
+   PROCESS VIDEO
+========================================================= */
+
+processBtn.addEventListener(
+    "click",
+    async function () {
+
+        if (!uploadedFilename) {
+
+            alert(
+                "Pehle video upload karo."
+            );
+
+            return;
+        }
+
+
+        processBtn.disabled = true;
+
+        uploadBtn.disabled = true;
+
+
+        processingStatus.textContent =
+            "Processing";
+
+
+        vehicleCount.textContent =
+            "...";
+
+
+        status(
+            "YOLOv8 + DeepSORT processing started. Please wait...",
+            "processing"
+        );
+
+        resultsNote.textContent =
+            "Processing detections and ROI crossings...";
+
+        resultsNote.className =
+            "status processing";
+
+        outputVideo.hidden = true;
+        livePreview.hidden = false;
+        processingProgress.hidden = false;
+        processingProgressText.hidden = false;
+        processingProgress.value = 0;
+        lastLivePreviewUrl = null;
+        processingPollTimer = setInterval(
+            () => updateLiveProgress(uploadedFilename),
+            400
+        );
+
+
+        vehicleList.innerHTML = `
+            <div class="vehicle">
+                Processing video...
+            </div>
+
+            <div class="vehicle">
+                YOLOv8 detection and DeepSORT tracking are running.
+            </div>
+        `;
+
+
+        try {
+
+            console.log(
+                "PROCESSING FILE:",
+                uploadedFilename
+            );
+
+
+            /*
+               CALL BACKEND
+            */
+
+            const response =
+                await fetch(
+                    "/api/video/process",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            filename: uploadedFilename,
+                            speedGateDistanceM: speedGateDistanceInput.value
+                                ? Number(speedGateDistanceInput.value)
+                                : null
+                        })
+                    }
+                );
+
+
+            /*
+               Backend response JSON
+            */
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "PROCESS RESPONSE:",
+                data
+            );
+
+
+            if (
+                !response.ok ||
+                !data.success
+            ) {
+
+                throw new Error(
+                    data.message ||
+                    data.error ||
+                    "Video processing failed."
+                );
+            }
+
+
+            /* =================================================
+               IMPORTANT
+               Backend ko exact H264 URL return karna chahiye.
+            ================================================= */
+
+
+            let outputPath =
+                data.outputH264 ||
+                data.output ||
+                data.videoUrl;
+
+
+            console.log(
+                "OUTPUT PATH:",
+                outputPath
+            );
+
+
+            if (!outputPath) {
+
+                throw new Error(
+                    "Backend ne output video path nahi diya."
+                );
+            }
+
+
+            /*
+               Windows path ko browser URL mein convert karo.
+            */
+
+            outputPath =
+                String(outputPath)
+                    .replace(/\\/g, "/");
+
+
+            /*
+               localhost prefix remove
+            */
+
+            outputPath =
+                outputPath.replace(
+                    "http://localhost:5000",
+                    ""
+                );
+
+
+            outputPath =
+                outputPath.replace(
+                    "http://127.0.0.1:5000",
+                    ""
+                );
+
+
+            /*
+               Agar backend:
+
+               uploads/output/file.mp4
+
+               return kare
+            */
+
+            if (
+                !outputPath.startsWith("/") &&
+                outputPath.startsWith("uploads/")
+            ) {
+
+                outputPath =
+                    "/" + outputPath;
+            }
+
+
+            /*
+               Agar backend sirf filename return kare
+            */
+
+            if (
+                !outputPath.startsWith("/") &&
+                !outputPath.includes("/")
+            ) {
+
+                outputPath =
+                    "/uploads/output/" +
+                    outputPath;
+            }
+
+
+            console.log(
+                "FINAL VIDEO URL:",
+                outputPath
+            );
+
+
+            /*
+               Load actual processed video
+            */
+
+            loadVideo(
+                outputPath
+            );
+
+
+            /*
+               SUCCESS
+            */
+
+            processingStatus.textContent =
+                "Completed";
+
+
+            const completionNotes = [];
+            completionNotes.push("Processed video is ready.");
+            if (!data.speedCalibrated) {
+                completionNotes.push("Speed unavailable until measured speed_gate.distance_m is configured.");
+            }
+            if (!data.databaseSaved) {
+                completionNotes.push("Results were not saved to MongoDB.");
+            }
+            status(completionNotes.join(" "), data.databaseSaved ? "success" : "processing");
+
+            resultsNote.textContent =
+                completionNotes.join(" ");
+
+            resultsNote.className =
+                data.databaseSaved ? "status success" : "status processing";
+
+
+            /*
+               ROI COUNT
+            */
+
+            if (
+                data.totalCrossed !== undefined
+            ) {
+
+                vehicleCount.textContent =
+                    data.totalCrossed;
+            }
+
+            else {
+
+                vehicleCount.textContent =
+                    "See Video";
+            }
+
+
+            let vehicleResults = Array.isArray(data.vehicleResults)
+                ? data.vehicleResults
+                : [];
+
+            if (data.databaseSaved && data.videoId) {
+                try {
+                    const resultResponse = await fetch(
+                        `/api/results/${encodeURIComponent(data.videoId)}`
+                    );
+                    const storedData = await resultResponse.json();
+                    if (resultResponse.ok && Array.isArray(storedData.results)) {
+                        vehicleResults = storedData.results;
+                    }
+                } catch (resultError) {
+                    console.warn("Could not reload saved vehicle results:", resultError);
+                }
+            }
+
+            renderVehicleResults(vehicleResults);
+
+        }
+        catch (error) {
+
+            console.error(
+                "PROCESS ERROR:",
+                error
+            );
+
+
+            processingStatus.textContent =
+                "Failed";
+
+
+            vehicleCount.textContent =
+                "0";
+
+
+            status(
+                "Processing failed: " +
+                error.message,
+                "error"
+            );
+
+            resultsNote.textContent =
+                "Processing failed: " + error.message;
+
+            resultsNote.className =
+                "status error";
+
+        }
+        finally {
+
+            if (processingPollTimer) {
+                clearInterval(processingPollTimer);
+                processingPollTimer = null;
+            }
+
+            processBtn.disabled =
+                false;
+
+            uploadBtn.disabled =
+                false;
+        }
+
+    }
+);
+
+
+/* =========================================================
+   PLAY
+========================================================= */
+
+playBtn.addEventListener(
+    "click",
+    async function () {
+
+        if (!processedVideoUrl) {
+
+            /*
+               Sirf testing ke liye
+            */
+
+            loadVideo(
+                "/uploads/output/test_processed_h264.mp4"
+            );
+        }
+
+
+        try {
+
+            await outputVideo.play();
+
+            status(
+                "Playing processed video.",
+                "success"
+            );
+
+        }
+        catch (error) {
+
+            console.error(
+                "PLAY ERROR:",
+                error
+            );
+
+
+            status(
+                "Video loaded. Use the video controls to play.",
+                "processing"
+            );
+        }
+
+    }
+);
+
+
+/* =========================================================
+   PAUSE
+========================================================= */
+
+pauseBtn.addEventListener(
+    "click",
+    function () {
+
+        outputVideo.pause();
+
+        status(
+            "Video paused."
+        );
+
+    }
+);
+
+
+/* =========================================================
+   STOP
+========================================================= */
+
+stopBtn.addEventListener(
+    "click",
+    function () {
+
+        outputVideo.pause();
+
+        outputVideo.currentTime = 0;
+
+        status(
+            "Video stopped."
+        );
+
+    }
+);
+
+
+/* =========================================================
+   VIDEO LOADED
+========================================================= */
+
+outputVideo.addEventListener(
+    "loadedmetadata",
+    function () {
+
+        console.log(
+            "VIDEO METADATA:"
+        );
+
+        console.log(
+            "Duration:",
+            outputVideo.duration
+        );
+
+        console.log(
+            "Width:",
+            outputVideo.videoWidth
+        );
+
+        console.log(
+            "Height:",
+            outputVideo.videoHeight
+        );
+
+
+        playBtn.disabled = false;
+
+        pauseBtn.disabled = false;
+
+        stopBtn.disabled = false;
+
+
+        status(
+            "Processed video loaded successfully.",
+            "success"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   VIDEO CAN PLAY
+========================================================= */
+
+outputVideo.addEventListener(
+    "canplay",
+    function () {
+
+        console.log(
+            "VIDEO CAN PLAY"
+        );
+
+
+        playBtn.disabled = false;
+
+        pauseBtn.disabled = false;
+
+        stopBtn.disabled = false;
+
+    }
+);
+
+
+/* =========================================================
+   VIDEO ERROR
+========================================================= */
+
+outputVideo.addEventListener(
+    "error",
+    function () {
+
+        console.error(
+            "VIDEO ERROR:",
+            outputVideo.error
+        );
+
+
+        status(
+            "Processed video could not be played.",
+            "error"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   VIDEO ENDED
+========================================================= */
+
+outputVideo.addEventListener(
+    "ended",
+    function () {
+
+        status(
+            "Processed video finished."
+        );
+
+    }
+);
+
+</script>
+
+</body>
+</html>

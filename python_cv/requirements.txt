@@ -1,0 +1,11 @@
+ultralytics
+deep-sort-realtime
+opencv-python
+numpy
+pandas
+torch
+torchvision
+scipy
+filterpy
+scikit-learn
+PyYAML

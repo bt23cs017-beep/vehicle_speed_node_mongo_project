@@ -1,0 +1,2 @@
+YOLO weights will be placed here after setup.
+Example: yolov8n.pt or your trained best.pt

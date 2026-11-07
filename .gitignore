@@ -1,0 +1,51 @@
+# Node.js
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+python_cv/venv/
+
+# Environment
+.env
+.env.*
+
+# Datasets
+datasets/
+
+# Logs
+logs/
+
+# Model weights
+*.pt
+*.pth
+*.onnx
+
+# Generated frames
+frame*.jpg
+real_frame.jpg
+python_cv/frame.jpg
+# YOLO generated outputs
+runs/
+
+# Uploaded videos
+uploads/input/
+uploads/output/
+uploads/removed/
+
+# Generated images
+*.avi
+*.mp4
+
+# YOLO preview images
+bus.jpg
+
+# Temporary files
+*.tmp
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
